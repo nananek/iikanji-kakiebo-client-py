@@ -1,6 +1,6 @@
 [project]
 name = "iikanji"
-version = "1.6.0"
+version = "1.6.2"
 description = "いいかんじ家計簿 Python クライアント"
 license = "MIT"
 license-files = ["LICENSE"]
