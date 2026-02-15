@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 
 
 @dataclass
@@ -30,13 +30,18 @@ class JournalLine:
 class JournalCreateRequest:
     """仕訳起票リクエスト"""
 
-    date: date | str
+    date: date | datetime | str
     description: str
     lines: list[JournalLine]
     source: str = "api"
 
     def to_dict(self) -> dict:
-        d = self.date if isinstance(self.date, str) else self.date.isoformat()
+        if isinstance(self.date, str):
+            d = self.date
+        elif isinstance(self.date, datetime):
+            d = self.date.date().isoformat()
+        else:
+            d = self.date.isoformat()
         return {
             "date": d,
             "description": self.description,

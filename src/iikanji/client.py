@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 import httpx
@@ -69,7 +69,7 @@ class KakeiboClient:
     def create_journal(
         self,
         *,
-        date: date | str,
+        date: date | datetime | str,
         description: str,
         lines: list[JournalLine],
         source: str = "api",
@@ -77,7 +77,7 @@ class KakeiboClient:
         """仕訳を起票する。
 
         Args:
-            date: 日付 (YYYY-MM-DD 文字列または date オブジェクト)
+            date: 日付 (date, datetime, または YYYY-MM-DD 文字列)
             description: 摘要
             lines: 仕訳明細行のリスト
             source: ソース種別 (デフォルト "api")

@@ -143,3 +143,27 @@ class TestCreateJournal:
             )
 
         assert captured[0]["date"] == "2026-03-01"
+
+    def test_datetime_object(self) -> None:
+        from datetime import datetime
+
+        captured: list[dict] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(json.loads(request.content))
+            return httpx.Response(201, json={"ok": True, "id": 1, "entry_number": 1})
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.create_journal(
+                date=datetime(2026, 3, 1, 14, 30, 0),
+                description="datetimeテスト",
+                lines=[JournalLine(account_id=1, debit=100), JournalLine(account_id=2, credit=100)],
+            )
+
+        assert captured[0]["date"] == "2026-03-01"
