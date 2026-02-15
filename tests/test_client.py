@@ -8,7 +8,9 @@ import pytest
 from iikanji import (
     AuthenticationError,
     JournalCreateResponse,
+    JournalDetail,
     JournalLine,
+    JournalListResponse,
     KakeiboAPIError,
     KakeiboClient,
 )
@@ -33,6 +35,19 @@ def _make_client(status_code: int, body: dict) -> KakeiboClient:
         "ik_testkey",
         http_client=http_client,
     )
+
+
+SAMPLE_JOURNAL = {
+    "id": 42,
+    "date": "2026-02-15",
+    "entry_number": 7,
+    "description": "テスト仕訳",
+    "source": "api",
+    "lines": [
+        {"account_id": 12, "debit": 1000, "credit": 0, "description": ""},
+        {"account_id": 1, "debit": 0, "credit": 1000, "description": "メモ"},
+    ],
+}
 
 
 class TestCreateJournal:
@@ -167,3 +182,127 @@ class TestCreateJournal:
             )
 
         assert captured[0]["date"] == "2026-03-01"
+
+
+class TestGetJournal:
+    def test_success(self) -> None:
+        client = _make_client(200, {"ok": True, "journal": SAMPLE_JOURNAL})
+
+        with client:
+            result = client.get_journal(42)
+
+        assert isinstance(result, JournalDetail)
+        assert result.id == 42
+        assert result.date == "2026-02-15"
+        assert result.entry_number == 7
+        assert result.description == "テスト仕訳"
+        assert result.source == "api"
+        assert len(result.lines) == 2
+        assert result.lines[0].account_id == 12
+        assert result.lines[0].debit == 1000
+        assert result.lines[1].description == "メモ"
+
+    def test_not_found(self) -> None:
+        client = _make_client(404, {"error": "仕訳が見つかりません。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.get_journal(999)
+
+        assert exc_info.value.status_code == 404
+
+    def test_forbidden(self) -> None:
+        client = _make_client(403, {"error": "この API キーには journals:read 権限がありません。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.get_journal(1)
+
+        assert exc_info.value.status_code == 403
+
+
+class TestListJournals:
+    def test_success(self) -> None:
+        body = {
+            "ok": True,
+            "journals": [SAMPLE_JOURNAL],
+            "total": 1,
+            "page": 1,
+            "per_page": 20,
+        }
+        client = _make_client(200, body)
+
+        with client:
+            result = client.list_journals()
+
+        assert isinstance(result, JournalListResponse)
+        assert result.total == 1
+        assert result.page == 1
+        assert result.per_page == 20
+        assert len(result.journals) == 1
+        assert result.journals[0].id == 42
+
+    def test_sends_query_params(self) -> None:
+        captured_urls: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return httpx.Response(200, json={
+                "ok": True, "journals": [], "total": 0, "page": 2, "per_page": 10,
+            })
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.list_journals(date_from="2026-01-01", date_to="2026-01-31", page=2, per_page=10)
+
+        url = captured_urls[0]
+        assert "date_from=2026-01-01" in url
+        assert "date_to=2026-01-31" in url
+        assert "page=2" in url
+        assert "per_page=10" in url
+
+
+class TestDeleteJournal:
+    def test_success(self) -> None:
+        client = _make_client(200, {"ok": True})
+
+        with client:
+            client.delete_journal(42)  # should not raise
+
+    def test_not_found(self) -> None:
+        client = _make_client(404, {"error": "仕訳が見つかりません。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.delete_journal(999)
+
+        assert exc_info.value.status_code == 404
+
+    def test_locked_period(self) -> None:
+        client = _make_client(400, {"error": "2026年1月は確定済みのため変更できません。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.delete_journal(42)
+
+        assert exc_info.value.status_code == 400
+        assert "確定済み" in exc_info.value.message
+
+    def test_sends_delete_method(self) -> None:
+        captured_methods: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured_methods.append(request.method)
+            return httpx.Response(200, json={"ok": True})
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.delete_journal(1)
+
+        assert captured_methods[0] == "DELETE"

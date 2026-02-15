@@ -17,7 +17,7 @@ pip install iikanji
 - Python 3.12 以上
 - いいかんじ家計簿サーバーの API キー（`ik_` プレフィックス付き）
 
-API キーはサーバーの **設定 > API キー管理** から発行できます。
+API キーはサーバーの **設定 > API キー管理** から発行できます。キー発行時に必要なスコープ（`journals:create`, `journals:read`, `journals:delete`）を選択してください。
 
 ## 基本的な使い方
 

@@ -1,6 +1,7 @@
 # iikanji — いいかんじ家計簿 Python クライアント
 
 いいかんじ家計簿サーバーの API を Python から呼び出すためのクライアントライブラリです。
+仕訳の起票・閲覧・削除に対応しています。
 
 ## インストール
 
@@ -25,7 +26,7 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
     print(f"仕訳ID: {result.id}, 伝票番号: {result.entry_number}")
 ```
 
-API キーはサーバーの **設定 > API キー管理** から発行できます。
+API キーはサーバーの **設定 > API キー管理** から発行できます。必要なスコープ（`journals:create`, `journals:read`, `journals:delete`）を選択してください。
 
 ## ドキュメント
 

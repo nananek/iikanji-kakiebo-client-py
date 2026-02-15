@@ -56,3 +56,44 @@ class JournalCreateResponse:
 
     id: int
     entry_number: int
+
+
+@dataclass
+class JournalDetail:
+    """仕訳詳細"""
+
+    id: int
+    date: str
+    entry_number: int
+    description: str
+    source: str
+    lines: list[JournalLine]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> JournalDetail:
+        return cls(
+            id=data["id"],
+            date=data["date"],
+            entry_number=data["entry_number"],
+            description=data["description"],
+            source=data["source"],
+            lines=[
+                JournalLine(
+                    account_id=line["account_id"],
+                    debit=line.get("debit", 0),
+                    credit=line.get("credit", 0),
+                    description=line.get("description", ""),
+                )
+                for line in data["lines"]
+            ],
+        )
+
+
+@dataclass
+class JournalListResponse:
+    """仕訳一覧レスポンス"""
+
+    journals: list[JournalDetail]
+    total: int
+    page: int
+    per_page: int

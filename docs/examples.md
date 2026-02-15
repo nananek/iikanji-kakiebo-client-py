@@ -72,6 +72,39 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
                 print(f"エラー: {row['摘要']} - {e.message}")
 ```
 
+## 仕訳の閲覧
+
+```python
+from iikanji import KakeiboClient
+
+with KakeiboClient("https://example.com", "ik_your_key") as client:
+    # 一覧取得（日付範囲で絞り込み）
+    result = client.list_journals(date_from="2026-02-01", date_to="2026-02-28")
+    print(f"全{result.total}件中 {len(result.journals)}件取得")
+
+    for j in result.journals:
+        print(f"  #{j.entry_number} {j.date} {j.description}")
+
+    # 1件取得
+    detail = client.get_journal(journal_id=42)
+    print(f"伝票#{detail.entry_number}: {detail.description}")
+    for line in detail.lines:
+        print(f"  科目{line.account_id}: 借方{line.debit} 貸方{line.credit}")
+```
+
+## 仕訳の削除
+
+```python
+from iikanji import KakeiboClient, KakeiboAPIError
+
+with KakeiboClient("https://example.com", "ik_your_key") as client:
+    try:
+        client.delete_journal(journal_id=42)
+        print("削除しました")
+    except KakeiboAPIError as e:
+        print(f"削除できません: {e.message}")
+```
+
 ## タイムアウトの変更
 
 ```python

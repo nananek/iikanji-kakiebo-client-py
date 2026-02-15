@@ -27,12 +27,12 @@ KakeiboClient(
 
 #### `create_journal`
 
-仕訳を起票する。
+仕訳を起票する。必要なスコープ: `journals:create`
 
 ```python
 create_journal(
     *,
-    date: date | str,
+    date: date | datetime | str,
     description: str,
     lines: list[JournalLine],
     source: str = "api",
@@ -41,16 +41,63 @@ create_journal(
 
 | 引数 | 型 | 説明 |
 |------|-----|------|
-| `date` | `date \| str` | 日付。`datetime.date` オブジェクトまたは `"YYYY-MM-DD"` 形式の文字列 |
+| `date` | `date \| datetime \| str` | 日付。`date`, `datetime`, または `"YYYY-MM-DD"` 文字列 |
 | `description` | `str` | 摘要（必須、空文字不可） |
 | `lines` | `list[JournalLine]` | 仕訳明細行のリスト（1行以上必須） |
 | `source` | `str` | ソース種別（デフォルト: `"api"`） |
 
 **戻り値:** `JournalCreateResponse`
 
-**例外:**
-- `AuthenticationError` — API キーが無効または未指定
-- `KakeiboAPIError` — バリデーションエラー（貸借不一致、期間ロック等）
+#### `get_journal`
+
+仕訳を1件取得する。必要なスコープ: `journals:read`
+
+```python
+get_journal(journal_id: int) -> JournalDetail
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `journal_id` | `int` | 仕訳 ID |
+
+**戻り値:** `JournalDetail`
+
+#### `list_journals`
+
+仕訳一覧を取得する。必要なスコープ: `journals:read`
+
+```python
+list_journals(
+    *,
+    date_from: date | datetime | str | None = None,
+    date_to: date | datetime | str | None = None,
+    page: int = 1,
+    per_page: int = 20,
+) -> JournalListResponse
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `date_from` | `date \| datetime \| str \| None` | 日付の下限（省略可） |
+| `date_to` | `date \| datetime \| str \| None` | 日付の上限（省略可） |
+| `page` | `int` | ページ番号（デフォルト: 1） |
+| `per_page` | `int` | 1ページあたりの件数（デフォルト: 20, 上限: 100） |
+
+**戻り値:** `JournalListResponse`
+
+#### `delete_journal`
+
+仕訳を削除する。必要なスコープ: `journals:delete`
+
+```python
+delete_journal(journal_id: int) -> None
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `journal_id` | `int` | 仕訳 ID |
+
+**例外:** 確定済み期間や提出ロック中の仕訳は削除不可（`KakeiboAPIError` 400）
 
 #### `close`
 
@@ -62,7 +109,9 @@ close() -> None
 
 ---
 
-## JournalLine
+## データモデル
+
+### JournalLine
 
 仕訳の1明細行を表すデータクラス。
 
@@ -84,9 +133,7 @@ class JournalLine:
 
 **注意:** 仕訳全体で借方合計と貸方合計が一致する必要があります（複式簿記）。
 
----
-
-## JournalCreateResponse
+### JournalCreateResponse
 
 仕訳起票の成功レスポンス。
 
@@ -101,6 +148,50 @@ class JournalCreateResponse:
 |-----------|-----|------|
 | `id` | `int` | 作成された仕訳の内部 ID |
 | `entry_number` | `int` | ユーザー内で一意の伝票番号 |
+
+### JournalDetail
+
+仕訳の詳細情報。`get_journal` / `list_journals` の戻り値で使用。
+
+```python
+@dataclass
+class JournalDetail:
+    id: int
+    date: str
+    entry_number: int
+    description: str
+    source: str
+    lines: list[JournalLine]
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `id` | `int` | 仕訳 ID |
+| `date` | `str` | 日付（YYYY-MM-DD） |
+| `entry_number` | `int` | 伝票番号 |
+| `description` | `str` | 摘要 |
+| `source` | `str` | ソース種別（`"journal"`, `"api"`, `"cashbook"` 等） |
+| `lines` | `list[JournalLine]` | 明細行のリスト |
+
+### JournalListResponse
+
+仕訳一覧のレスポンス。
+
+```python
+@dataclass
+class JournalListResponse:
+    journals: list[JournalDetail]
+    total: int
+    page: int
+    per_page: int
+```
+
+| フィールド | 型 | 説明 |
+|-----------|-----|------|
+| `journals` | `list[JournalDetail]` | 仕訳のリスト |
+| `total` | `int` | 全件数 |
+| `page` | `int` | 現在のページ番号 |
+| `per_page` | `int` | 1ページあたりの件数 |
 
 ---
 
@@ -127,13 +218,27 @@ class AuthenticationError(KakeiboAPIError):
 
 **主なエラーメッセージ（サーバーから返される）:**
 
-| メッセージ | 原因 |
-|-----------|------|
-| `Authorization ヘッダーが必要です。` | Bearer トークン未指定 |
-| `無効な API キーです。` | キーが無効または無効化済み |
-| `date は必須です。` | 日付が未指定 |
-| `description は必須です。` | 摘要が未指定 |
-| `lines は必須です（配列）。` | 明細行が未指定 |
-| `date の形式が不正です（YYYY-MM-DD）。` | 日付フォーマット不正 |
-| `lines[i].account_id は必須です。` | 科目 ID が未指定 |
-| `貸借が一致しません（借方: X, 貸方: Y）` | 借方・貸方の合計不一致 |
+| ステータス | メッセージ | 原因 |
+|-----------|-----------|------|
+| 401 | `Authorization ヘッダーが必要です。` | Bearer トークン未指定 |
+| 401 | `無効な API キーです。` | キーが無効または無効化済み |
+| 403 | `この API キーには journals:read 権限がありません。` | スコープ不足 |
+| 400 | `date は必須です。` | 日付が未指定 |
+| 400 | `description は必須です。` | 摘要が未指定 |
+| 400 | `lines は必須です（配列）。` | 明細行が未指定 |
+| 400 | `date の形式が不正です（YYYY-MM-DD）。` | 日付フォーマット不正 |
+| 400 | `lines[i].account_id は必須です。` | 科目 ID が未指定 |
+| 400 | `貸借が一致しません（借方: X, 貸方: Y）` | 借方・貸方の合計不一致 |
+| 404 | `仕訳が見つかりません。` | 指定 ID の仕訳が存在しない |
+
+---
+
+## API キーのスコープ
+
+サーバー側で API キー発行時にスコープを設定できます。
+
+| スコープ | 説明 | 依存 |
+|---------|------|------|
+| `journals:create` | 仕訳起票 | — |
+| `journals:read` | 仕訳閲覧（一覧・詳細） | — |
+| `journals:delete` | 仕訳削除 | `journals:read` が必要 |
