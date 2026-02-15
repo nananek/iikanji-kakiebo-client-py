@@ -48,4 +48,4 @@ uv run pytest
 
 ## ライセンス
 
-Private
+[いいかんじ™ライセンス (IKL)](LICENSE) — MIT 互換
