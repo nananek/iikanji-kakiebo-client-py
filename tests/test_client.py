@@ -6,7 +6,10 @@ import httpx
 import pytest
 
 from iikanji import (
+    AnalyzeResponse,
     AuthenticationError,
+    DraftDetail,
+    DraftListItem,
     JournalCreateResponse,
     JournalDetail,
     JournalLine,
@@ -99,6 +102,57 @@ class TestCreateJournal:
         assert len(payload["lines"]) == 2
         assert payload["lines"][0] == {"account_id": 5, "debit": 500, "description": "メモ"}
         assert payload["lines"][1] == {"account_id": 1, "credit": 500}
+
+    def test_with_draft_id(self) -> None:
+        captured: list[dict] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(json.loads(request.content))
+            return httpx.Response(201, json={"ok": True, "id": 1, "entry_number": 1, "draft_id": 10})
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.create_journal(
+                date="2026-01-10",
+                description="下書きから確定",
+                lines=[
+                    JournalLine(account_id=5, debit=500),
+                    JournalLine(account_id=1, credit=500),
+                ],
+                draft_id=10,
+            )
+
+        assert captured[0]["draft_id"] == 10
+
+    def test_without_draft_id(self) -> None:
+        captured: list[dict] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(json.loads(request.content))
+            return httpx.Response(201, json={"ok": True, "id": 1, "entry_number": 1})
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.create_journal(
+                date="2026-01-10",
+                description="通常の仕訳",
+                lines=[
+                    JournalLine(account_id=5, debit=500),
+                    JournalLine(account_id=1, credit=500),
+                ],
+            )
+
+        assert "draft_id" not in captured[0]
 
     def test_authentication_error(self) -> None:
         client = _make_client(401, {"error": "無効な API キーです。"})
@@ -306,3 +360,163 @@ class TestDeleteJournal:
             client.delete_journal(1)
 
         assert captured_methods[0] == "DELETE"
+
+
+# --- AI 証憑仕訳 ---
+
+
+SAMPLE_SUGGESTIONS = [
+    {
+        "title": "食費",
+        "date": "2026-02-19",
+        "description": "レシート",
+        "entry_description": "スーパーで食材購入",
+        "lines": [
+            {"account_id": 12, "account_name": "食費", "debit_amount": 3000, "credit_amount": 0},
+            {"account_id": 1, "account_name": "現金", "debit_amount": 0, "credit_amount": 3000},
+        ],
+    }
+]
+
+SAMPLE_DRAFT = {
+    "id": 10,
+    "status": "analyzed",
+    "comment": "テスト",
+    "created_at": "2026-02-19T12:00:00",
+    "summary": {
+        "title": "食費",
+        "date": "2026-02-19",
+        "description": "スーパーで食材購入",
+        "amount": 3000,
+        "suggestion_count": 1,
+    },
+}
+
+
+class TestAnalyze:
+    def test_success(self) -> None:
+        body = {"ok": True, "draft_id": 10, "suggestions": SAMPLE_SUGGESTIONS}
+
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(201, json=body)
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            result = client.analyze(b"\xff\xd8\xff\xe0", comment="テストメモ")
+
+        assert isinstance(result, AnalyzeResponse)
+        assert result.draft_id == 10
+        assert len(result.suggestions) == 1
+        assert result.suggestions[0]["title"] == "食費"
+
+        # multipart で送信されていることを確認
+        req = captured[0]
+        assert "/api/v1/ai/analyze" in str(req.url)
+
+    def test_with_notify(self) -> None:
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(201, json={"ok": True, "draft_id": 1, "suggestions": []})
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.analyze(b"\xff\xd8", notify=True)
+
+        content = captured[0].content.decode("utf-8", errors="replace")
+        assert "notify" in content
+
+    def test_api_error(self) -> None:
+        client = _make_client(400, {"error": "AI API設定が未登録です。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.analyze(b"\xff\xd8")
+
+        assert exc_info.value.status_code == 400
+
+
+class TestListDrafts:
+    def test_success(self) -> None:
+        body = {"ok": True, "drafts": [SAMPLE_DRAFT]}
+        client = _make_client(200, body)
+
+        with client:
+            result = client.list_drafts()
+
+        assert len(result) == 1
+        assert isinstance(result[0], DraftListItem)
+        assert result[0].id == 10
+        assert result[0].status == "analyzed"
+        assert result[0].summary is not None
+        assert result[0].summary.amount == 3000
+
+    def test_sends_status_param(self) -> None:
+        captured_urls: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured_urls.append(str(request.url))
+            return httpx.Response(200, json={"ok": True, "drafts": []})
+
+        http_client = httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://test.example.com",
+            headers={"Authorization": "Bearer ik_testkey"},
+        )
+
+        with KakeiboClient("https://test.example.com", "ik_testkey", http_client=http_client) as client:
+            client.list_drafts(status="all")
+
+        assert "status=all" in captured_urls[0]
+
+
+class TestGetDraft:
+    def test_success(self) -> None:
+        draft_with_suggestions = {**SAMPLE_DRAFT, "suggestions": SAMPLE_SUGGESTIONS}
+        body = {"ok": True, "draft": draft_with_suggestions}
+        client = _make_client(200, body)
+
+        with client:
+            result = client.get_draft(10)
+
+        assert isinstance(result, DraftDetail)
+        assert result.id == 10
+        assert len(result.suggestions) == 1
+        assert result.suggestions[0]["title"] == "食費"
+
+    def test_not_found(self) -> None:
+        client = _make_client(404, {"error": "下書きが見つかりません。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.get_draft(999)
+
+        assert exc_info.value.status_code == 404
+
+
+class TestDeleteDraft:
+    def test_success(self) -> None:
+        client = _make_client(200, {"ok": True})
+
+        with client:
+            client.delete_draft(10)  # should not raise
+
+    def test_not_found(self) -> None:
+        client = _make_client(404, {"error": "下書きが見つかりません。"})
+
+        with client, pytest.raises(KakeiboAPIError) as exc_info:
+            client.delete_draft(999)
+
+        assert exc_info.value.status_code == 404

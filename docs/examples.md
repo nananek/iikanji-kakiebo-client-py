@@ -105,10 +105,91 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
         print(f"削除できません: {e.message}")
 ```
 
+## AI 証憑仕訳 — レシートから自動仕訳
+
+```python
+from iikanji import KakeiboClient, JournalLine
+
+with KakeiboClient("https://example.com", "ik_your_key") as client:
+    # 画像を AI 解析（ファイルパス指定）
+    result = client.analyze("receipt.jpg", comment="コンビニで購入")
+    print(f"下書きID: {result.draft_id}")
+
+    # 最初の候補を確認
+    s = result.suggestions[0]
+    print(f"候補: {s['entry_description']} ({s['date']})")
+    for line in s["lines"]:
+        print(f"  {line['account_name']}: 借方{line['debit_amount']} 貸方{line['credit_amount']}")
+
+    # そのまま仕訳として確定
+    client.create_journal(
+        date=s["date"],
+        description=s["entry_description"],
+        lines=[
+            JournalLine(
+                account_id=line["account_id"],
+                debit=line["debit_amount"],
+                credit=line["credit_amount"],
+            )
+            for line in s["lines"]
+        ],
+        draft_id=result.draft_id,  # 下書きを確定済みにする
+    )
+```
+
+## AI 証憑仕訳 — 下書き一覧から処理
+
+```python
+from iikanji import KakeiboClient, JournalLine
+
+with KakeiboClient("https://example.com", "ik_your_key") as client:
+    # 未確定の下書き一覧
+    drafts = client.list_drafts(status="analyzed")
+    print(f"未処理の下書き: {len(drafts)}件")
+
+    for item in drafts:
+        # 詳細を取得
+        draft = client.get_draft(item.id)
+        s = draft.suggestions[0]
+        print(f"  [{item.id}] {s['date']} {s['entry_description']}")
+
+        # 仕訳確定
+        client.create_journal(
+            date=s["date"],
+            description=s["entry_description"],
+            lines=[
+                JournalLine(
+                    account_id=line["account_id"],
+                    debit=line["debit_amount"],
+                    credit=line["credit_amount"],
+                )
+                for line in s["lines"]
+            ],
+            draft_id=item.id,
+        )
+        print(f"    → 確定しました")
+```
+
+## AI 証憑仕訳 — バイト列から解析
+
+```python
+from iikanji import KakeiboClient
+
+with KakeiboClient("https://example.com", "ik_your_key") as client:
+    # カメラやHTTPレスポンスから取得したバイト列を直接渡す
+    image_bytes = b"..."  # 画像のバイト列
+    result = client.analyze(
+        image_bytes,
+        mime_type="image/png",
+        comment="経費精算",
+        notify=True,  # Webhook 通知を送信
+    )
+```
+
 ## タイムアウトの変更
 
 ```python
-# 長時間かかるリクエスト用にタイムアウトを延長
+# AI 解析は時間がかかることがあるのでタイムアウトを延長
 client = KakeiboClient(
     "https://example.com",
     "ik_your_key",

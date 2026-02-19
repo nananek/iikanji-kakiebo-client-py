@@ -8,7 +8,12 @@ from typing import TYPE_CHECKING
 import httpx
 
 from .exceptions import AuthenticationError, KakeiboAPIError
+from pathlib import Path
+
 from .models import (
+    AnalyzeResponse,
+    DraftDetail,
+    DraftListItem,
     JournalCreateRequest,
     JournalCreateResponse,
     JournalDetail,
@@ -81,6 +86,7 @@ class KakeiboClient:
         description: str,
         lines: list[JournalLine],
         source: str = "api",
+        draft_id: int | None = None,
     ) -> JournalCreateResponse:
         """仕訳を起票する。
 
@@ -89,6 +95,7 @@ class KakeiboClient:
             description: 摘要
             lines: 仕訳明細行のリスト
             source: ソース種別 (デフォルト "api")
+            draft_id: 確定する下書き ID (省略可)。指定すると下書きの status が done になる
 
         Returns:
             JournalCreateResponse: 作成された仕訳の ID と伝票番号
@@ -102,6 +109,7 @@ class KakeiboClient:
             description=description,
             lines=lines,
             source=source,
+            draft_id=draft_id,
         )
         resp = self._client.post("/api/v1/journals", json=req.to_dict())
         if resp.status_code == 201:
@@ -179,6 +187,92 @@ class KakeiboClient:
             KakeiboAPIError: 仕訳が見つからない (404)、期間ロック (400) 等
         """
         resp = self._client.delete(f"/api/v1/journals/{journal_id}")
+        if resp.status_code == 200:
+            return
+        self._raise_for_error(resp)
+
+    # --- AI 証憑仕訳 ---
+
+    def analyze(
+        self,
+        image: str | Path | bytes,
+        *,
+        comment: str = "",
+        notify: bool = False,
+        mime_type: str | None = None,
+    ) -> AnalyzeResponse:
+        """画像を AI 解析して下書きを作成する。必要なスコープ: ``ai:analyze``
+
+        Args:
+            image: 画像ファイルパス (str/Path) またはバイト列
+            comment: メモ (省略可、最大500文字)
+            notify: True で Webhook 通知を送信
+            mime_type: バイト列渡し時の MIME タイプ (デフォルト: image/jpeg)
+
+        Returns:
+            AnalyzeResponse: 作成された下書き ID と候補リスト
+        """
+        if isinstance(image, (str, Path)):
+            path = Path(image)
+            image_bytes = path.read_bytes()
+            filename = path.name
+        else:
+            image_bytes = image
+            filename = "image.jpg"
+
+        files = {"image": (filename, image_bytes, mime_type or "image/jpeg")}
+        data: dict[str, str] = {}
+        if comment:
+            data["comment"] = comment[:500]
+        if notify:
+            data["notify"] = "1"
+
+        resp = self._client.post("/api/v1/ai/analyze", files=files, data=data)
+        if resp.status_code == 201:
+            body = resp.json()
+            return AnalyzeResponse(
+                draft_id=body["draft_id"],
+                suggestions=body["suggestions"],
+            )
+        self._raise_for_error(resp)
+
+    def list_drafts(
+        self, *, status: str = "analyzed"
+    ) -> list[DraftListItem]:
+        """下書き一覧を取得する。必要なスコープ: ``ai:analyze``
+
+        Args:
+            status: フィルタ ("analyzed" / "done" / "all", デフォルト: "analyzed")
+
+        Returns:
+            下書きのリスト
+        """
+        resp = self._client.get("/api/v1/ai/drafts", params={"status": status})
+        if resp.status_code == 200:
+            return [DraftListItem.from_dict(d) for d in resp.json()["drafts"]]
+        self._raise_for_error(resp)
+
+    def get_draft(self, draft_id: int) -> DraftDetail:
+        """下書き詳細を取得する（候補データ含む）。必要なスコープ: ``ai:analyze``
+
+        Args:
+            draft_id: 下書き ID
+
+        Returns:
+            DraftDetail: 下書きの詳細と候補リスト
+        """
+        resp = self._client.get(f"/api/v1/ai/drafts/{draft_id}")
+        if resp.status_code == 200:
+            return DraftDetail.from_dict(resp.json()["draft"])
+        self._raise_for_error(resp)
+
+    def delete_draft(self, draft_id: int) -> None:
+        """下書きを削除する。必要なスコープ: ``ai:analyze``
+
+        Args:
+            draft_id: 下書き ID
+        """
+        resp = self._client.delete(f"/api/v1/ai/drafts/{draft_id}")
         if resp.status_code == 200:
             return
         self._raise_for_error(resp)

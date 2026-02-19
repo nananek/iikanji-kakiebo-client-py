@@ -1,7 +1,7 @@
 # iikanji — いいかんじ家計簿 Python クライアント
 
 いいかんじ家計簿サーバーの API を Python から呼び出すためのクライアントライブラリです。
-仕訳の起票・閲覧・削除に対応しています。
+仕訳の起票・閲覧・削除、AI 証憑仕訳（画像解析・下書き管理）に対応しています。
 
 ## インストール
 
@@ -26,13 +26,42 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
     print(f"仕訳ID: {result.id}, 伝票番号: {result.entry_number}")
 ```
 
-API キーはサーバーの **設定 > API キー管理** から発行できます。必要なスコープ（`journals:create`, `journals:read`, `journals:delete`）を選択してください。
+### AI 証憑仕訳
+
+```python
+with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as client:
+    # レシート画像を AI 解析して下書き作成
+    result = client.analyze("receipt.jpg", comment="コンビニ")
+    print(f"下書きID: {result.draft_id}, 候補数: {len(result.suggestions)}")
+
+    # 下書き一覧
+    drafts = client.list_drafts()
+
+    # 候補を確認して仕訳確定
+    draft = client.get_draft(result.draft_id)
+    s = draft.suggestions[0]
+    client.create_journal(
+        date=s["date"],
+        description=s["entry_description"],
+        lines=[
+            JournalLine(
+                account_id=line["account_id"],
+                debit=line["debit_amount"],
+                credit=line["credit_amount"],
+            )
+            for line in s["lines"]
+        ],
+        draft_id=result.draft_id,  # 下書きを確定済みにする
+    )
+```
+
+API キーはサーバーの **設定 > API キー管理** から発行できます。必要なスコープ（`journals:create`, `journals:read`, `journals:delete`, `ai:analyze`）を選択してください。
 
 ## ドキュメント
 
 - [はじめに](docs/getting-started.md) — インストールと基本的な使い方
 - [API リファレンス](docs/api-reference.md) — クラス・メソッド・例外の詳細
-- [使用例](docs/examples.md) — CSV 一括登録、給与記録など実践的なサンプル
+- [使用例](docs/examples.md) — CSV 一括登録、AI 証憑仕訳など実践的なサンプル
 
 ## 要件
 

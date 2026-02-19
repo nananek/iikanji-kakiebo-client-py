@@ -36,6 +36,7 @@ create_journal(
     description: str,
     lines: list[JournalLine],
     source: str = "api",
+    draft_id: int | None = None,
 ) -> JournalCreateResponse
 ```
 
@@ -45,6 +46,7 @@ create_journal(
 | `description` | `str` | 摘要（必須、空文字不可） |
 | `lines` | `list[JournalLine]` | 仕訳明細行のリスト（1行以上必須） |
 | `source` | `str` | ソース種別（デフォルト: `"api"`） |
+| `draft_id` | `int \| None` | 確定する下書き ID（省略可）。指定すると下書きの status が done になる |
 
 **戻り値:** `JournalCreateResponse`
 
@@ -98,6 +100,69 @@ delete_journal(journal_id: int) -> None
 | `journal_id` | `int` | 仕訳 ID |
 
 **例外:** 確定済み期間や提出ロック中の仕訳は削除不可（`KakeiboAPIError` 400）
+
+#### `analyze`
+
+画像を AI 解析して下書きを作成する。必要なスコープ: `ai:analyze`
+
+```python
+analyze(
+    image: str | Path | bytes,
+    *,
+    comment: str = "",
+    notify: bool = False,
+    mime_type: str | None = None,
+) -> AnalyzeResponse
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `image` | `str \| Path \| bytes` | 画像ファイルパスまたはバイト列 |
+| `comment` | `str` | メモ（省略可、最大500文字） |
+| `notify` | `bool` | True で Webhook 通知を送信 |
+| `mime_type` | `str \| None` | バイト列渡し時の MIME タイプ（デフォルト: `image/jpeg`） |
+
+**戻り値:** `AnalyzeResponse`
+
+#### `list_drafts`
+
+下書き一覧を取得する。必要なスコープ: `ai:analyze`
+
+```python
+list_drafts(*, status: str = "analyzed") -> list[DraftListItem]
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `status` | `str` | フィルタ: `"analyzed"` / `"done"` / `"all"`（デフォルト: `"analyzed"`） |
+
+**戻り値:** `list[DraftListItem]`
+
+#### `get_draft`
+
+下書き詳細を取得する（候補データ含む）。必要なスコープ: `ai:analyze`
+
+```python
+get_draft(draft_id: int) -> DraftDetail
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `draft_id` | `int` | 下書き ID |
+
+**戻り値:** `DraftDetail`
+
+#### `delete_draft`
+
+下書きを削除する。必要なスコープ: `ai:analyze`
+
+```python
+delete_draft(draft_id: int) -> None
+```
+
+| 引数 | 型 | 説明 |
+|------|-----|------|
+| `draft_id` | `int` | 下書き ID |
 
 #### `close`
 
@@ -186,12 +251,64 @@ class JournalListResponse:
     per_page: int
 ```
 
+### AnalyzeResponse
+
+AI 解析レスポンス。
+
+```python
+@dataclass
+class AnalyzeResponse:
+    draft_id: int
+    suggestions: list[dict]
+```
+
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| `journals` | `list[JournalDetail]` | 仕訳のリスト |
-| `total` | `int` | 全件数 |
-| `page` | `int` | 現在のページ番号 |
-| `per_page` | `int` | 1ページあたりの件数 |
+| `draft_id` | `int` | 作成された下書きの ID |
+| `suggestions` | `list[dict]` | 仕訳候補のリスト（各候補に `title`, `date`, `entry_description`, `lines` 等を含む） |
+
+### DraftSummary
+
+下書きのサマリー情報。
+
+```python
+@dataclass
+class DraftSummary:
+    title: str = ""
+    date: str = ""
+    description: str = ""
+    amount: int = 0
+    suggestion_count: int = 0
+```
+
+### DraftListItem
+
+下書き一覧の1件。`list_drafts` の戻り値で使用。
+
+```python
+@dataclass
+class DraftListItem:
+    id: int
+    status: str
+    comment: str
+    created_at: str
+    summary: DraftSummary | None = None
+```
+
+### DraftDetail
+
+下書きの詳細。`get_draft` の戻り値で使用。候補データを含む。
+
+```python
+@dataclass
+class DraftDetail:
+    id: int
+    status: str
+    comment: str
+    created_at: str
+    summary: DraftSummary | None = None
+    suggestions: list[dict] = field(default_factory=list)
+```
 
 ---
 
@@ -222,14 +339,14 @@ class AuthenticationError(KakeiboAPIError):
 |-----------|-----------|------|
 | 401 | `Authorization ヘッダーが必要です。` | Bearer トークン未指定 |
 | 401 | `無効な API キーです。` | キーが無効または無効化済み |
-| 403 | `この API キーには journals:read 権限がありません。` | スコープ不足 |
+| 403 | `この API キーには ai:analyze 権限がありません。` | スコープ不足 |
 | 400 | `date は必須です。` | 日付が未指定 |
 | 400 | `description は必須です。` | 摘要が未指定 |
 | 400 | `lines は必須です（配列）。` | 明細行が未指定 |
-| 400 | `date の形式が不正です（YYYY-MM-DD）。` | 日付フォーマット不正 |
-| 400 | `lines[i].account_id は必須です。` | 科目 ID が未指定 |
-| 400 | `貸借が一致しません（借方: X, 貸方: Y）` | 借方・貸方の合計不一致 |
+| 400 | `AI API設定が未登録です。` | サーバーでAI設定未完了 |
+| 400 | `下書き(id=N)が見つからないか、既に確定済みです。` | 無効な draft_id |
 | 404 | `仕訳が見つかりません。` | 指定 ID の仕訳が存在しない |
+| 404 | `下書きが見つかりません。` | 指定 ID の下書きが存在しない |
 
 ---
 
@@ -242,3 +359,4 @@ class AuthenticationError(KakeiboAPIError):
 | `journals:create` | 仕訳起票 | — |
 | `journals:read` | 仕訳閲覧（一覧・詳細） | — |
 | `journals:delete` | 仕訳削除 | `journals:read` が必要 |
+| `ai:analyze` | AI証憑仕訳（解析・下書き一覧・詳細・削除） | — |
