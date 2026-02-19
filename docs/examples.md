@@ -144,10 +144,10 @@ from iikanji import KakeiboClient, JournalLine
 
 with KakeiboClient("https://example.com", "ik_your_key") as client:
     # 未確定の下書き一覧
-    drafts = client.list_drafts(status="analyzed")
-    print(f"未処理の下書き: {len(drafts)}件")
+    result = client.list_drafts(status="analyzed")
+    print(f"未処理の下書き: {result.total}件")
 
-    for item in drafts:
+    for item in result.drafts:
         # 詳細を取得
         draft = client.get_draft(item.id)
         s = draft.suggestions[0]

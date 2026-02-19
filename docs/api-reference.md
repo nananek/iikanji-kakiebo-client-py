@@ -129,14 +129,21 @@ analyze(
 下書き一覧を取得する。必要なスコープ: `ai:analyze`
 
 ```python
-list_drafts(*, status: str = "analyzed") -> list[DraftListItem]
+list_drafts(
+    *,
+    status: str = "analyzed",
+    page: int = 1,
+    per_page: int = 50,
+) -> DraftListResponse
 ```
 
 | 引数 | 型 | 説明 |
 |------|-----|------|
 | `status` | `str` | フィルタ: `"analyzed"` / `"done"` / `"all"`（デフォルト: `"analyzed"`） |
+| `page` | `int` | ページ番号（デフォルト: 1） |
+| `per_page` | `int` | 1ページあたりの件数（デフォルト: 50, 上限: 100） |
 
-**戻り値:** `list[DraftListItem]`
+**戻り値:** `DraftListResponse`
 
 #### `get_draft`
 
@@ -293,6 +300,19 @@ class DraftListItem:
     comment: str
     created_at: str
     summary: DraftSummary | None = None
+```
+
+### DraftListResponse
+
+下書き一覧のレスポンス。
+
+```python
+@dataclass
+class DraftListResponse:
+    drafts: list[DraftListItem]
+    total: int
+    page: int
+    per_page: int
 ```
 
 ### DraftDetail

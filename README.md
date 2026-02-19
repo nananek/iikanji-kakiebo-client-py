@@ -34,8 +34,9 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
     result = client.analyze("receipt.jpg", comment="コンビニ")
     print(f"下書きID: {result.draft_id}, 候補数: {len(result.suggestions)}")
 
-    # 下書き一覧
-    drafts = client.list_drafts()
+    # 下書き一覧（ページネーション対応）
+    result = client.list_drafts()
+    drafts = result.drafts
 
     # 候補を確認して仕訳確定
     draft = client.get_draft(result.draft_id)
