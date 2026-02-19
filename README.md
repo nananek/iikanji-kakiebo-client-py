@@ -72,9 +72,11 @@ API キーはサーバーの **設定 > API キー管理** から発行できま
 ## 開発
 
 ```bash
-uv sync --all-extras
+uv sync --extra dev
 uv run pytest
 ```
+
+GitHub Actions でも push/PR 時にテストが自動実行されます。
 
 ## ライセンス
 
