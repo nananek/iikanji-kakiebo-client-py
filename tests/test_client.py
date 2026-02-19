@@ -10,6 +10,7 @@ from iikanji import (
     AuthenticationError,
     DraftDetail,
     DraftListItem,
+    DraftListResponse,
     JournalCreateResponse,
     JournalDetail,
     JournalLine,
@@ -451,25 +452,28 @@ class TestAnalyze:
 
 class TestListDrafts:
     def test_success(self) -> None:
-        body = {"ok": True, "drafts": [SAMPLE_DRAFT]}
+        body = {"ok": True, "drafts": [SAMPLE_DRAFT], "total": 1, "page": 1, "per_page": 50}
         client = _make_client(200, body)
 
         with client:
             result = client.list_drafts()
 
-        assert len(result) == 1
-        assert isinstance(result[0], DraftListItem)
-        assert result[0].id == 10
-        assert result[0].status == "analyzed"
-        assert result[0].summary is not None
-        assert result[0].summary.amount == 3000
+        assert isinstance(result, DraftListResponse)
+        assert result.total == 1
+        assert result.page == 1
+        assert len(result.drafts) == 1
+        assert isinstance(result.drafts[0], DraftListItem)
+        assert result.drafts[0].id == 10
+        assert result.drafts[0].status == "analyzed"
+        assert result.drafts[0].summary is not None
+        assert result.drafts[0].summary.amount == 3000
 
     def test_sends_status_param(self) -> None:
         captured_urls: list[str] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
             captured_urls.append(str(request.url))
-            return httpx.Response(200, json={"ok": True, "drafts": []})
+            return httpx.Response(200, json={"ok": True, "drafts": [], "total": 0, "page": 1, "per_page": 50})
 
         http_client = httpx.Client(
             transport=httpx.MockTransport(handler),

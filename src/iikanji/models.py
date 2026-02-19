@@ -183,6 +183,16 @@ class DraftDetail:
 
 
 @dataclass
+class DraftListResponse:
+    """下書き一覧レスポンス"""
+
+    drafts: list[DraftListItem]
+    total: int
+    page: int
+    per_page: int
+
+
+@dataclass
 class AnalyzeResponse:
     """AI解析レスポンス"""
 

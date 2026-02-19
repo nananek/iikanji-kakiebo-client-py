@@ -14,6 +14,7 @@ from .models import (
     AnalyzeResponse,
     DraftDetail,
     DraftListItem,
+    DraftListResponse,
     JournalCreateRequest,
     JournalCreateResponse,
     JournalDetail,
@@ -237,19 +238,36 @@ class KakeiboClient:
         self._raise_for_error(resp)
 
     def list_drafts(
-        self, *, status: str = "analyzed"
-    ) -> list[DraftListItem]:
+        self,
+        *,
+        status: str = "analyzed",
+        page: int = 1,
+        per_page: int = 50,
+    ) -> DraftListResponse:
         """下書き一覧を取得する。必要なスコープ: ``ai:analyze``
 
         Args:
             status: フィルタ ("analyzed" / "done" / "all", デフォルト: "analyzed")
+            page: ページ番号 (デフォルト 1)
+            per_page: 1ページあたりの件数 (デフォルト 50, 上限 100)
 
         Returns:
-            下書きのリスト
+            DraftListResponse: 下書き一覧とページネーション情報
         """
-        resp = self._client.get("/api/v1/ai/drafts", params={"status": status})
+        params: dict[str, str | int] = {
+            "status": status,
+            "page": page,
+            "per_page": per_page,
+        }
+        resp = self._client.get("/api/v1/ai/drafts", params=params)
         if resp.status_code == 200:
-            return [DraftListItem.from_dict(d) for d in resp.json()["drafts"]]
+            data = resp.json()
+            return DraftListResponse(
+                drafts=[DraftListItem.from_dict(d) for d in data["drafts"]],
+                total=data["total"],
+                page=data["page"],
+                per_page=data["per_page"],
+            )
         self._raise_for_error(resp)
 
     def get_draft(self, draft_id: int) -> DraftDetail:
