@@ -10,8 +10,8 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
         date="2026-02-15",
         description="スーパーで食材購入",
         lines=[
-            JournalLine(account_id=12, debit=3500),   # 食費
-            JournalLine(account_id=1, credit=3500),    # 現金
+            JournalLine(account_code="7010", debit=3500),   # 食費
+            JournalLine(account_code="1010", credit=3500),  # 現金
         ],
     )
 ```
@@ -27,11 +27,11 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
         date=date(2026, 2, 25),
         description="2月分給与",
         lines=[
-            JournalLine(account_id=2, debit=300000),     # 普通預金（手取り）
-            JournalLine(account_id=30, debit=45000),      # 源泉所得税
-            JournalLine(account_id=31, debit=25000),      # 住民税
-            JournalLine(account_id=20, debit=30000),      # 社会保険料
-            JournalLine(account_id=10, credit=400000),    # 給与収入
+            JournalLine(account_code="1020", debit=300000),    # 普通預金（手取り）
+            JournalLine(account_code="3010", debit=45000),    # 源泉所得税
+            JournalLine(account_code="3020", debit=25000),    # 住民税
+            JournalLine(account_code="3030", debit=30000),    # 社会保険料
+            JournalLine(account_code="5010", credit=400000),  # 給与収入
         ],
     )
 ```
@@ -43,9 +43,9 @@ import csv
 from iikanji import KakeiboClient, JournalLine, KakeiboAPIError
 
 ACCOUNT_MAP = {
-    "食費": 12,
-    "交通費": 16,
-    "日用品": 17,
+    "食費": "7010",
+    "交通費": "7030",
+    "日用品": "7040",
 }
 
 with KakeiboClient("https://example.com", "ik_your_key") as client:
@@ -53,8 +53,8 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
         reader = csv.DictReader(f)
         for row in reader:
             category = row["カテゴリ"]
-            account_id = ACCOUNT_MAP.get(category)
-            if not account_id:
+            account_code = ACCOUNT_MAP.get(category)
+            if not account_code:
                 print(f"不明なカテゴリ: {category}, スキップ")
                 continue
 
@@ -63,8 +63,8 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
                     date=row["日付"],
                     description=row["摘要"],
                     lines=[
-                        JournalLine(account_id=account_id, debit=int(row["金額"])),
-                        JournalLine(account_id=1, credit=int(row["金額"])),
+                        JournalLine(account_code=account_code, debit=int(row["金額"])),
+                        JournalLine(account_code="1010", credit=int(row["金額"])),
                     ],
                 )
                 print(f"登録完了: 伝票#{result.entry_number}")
@@ -89,7 +89,7 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
     detail = client.get_journal(journal_id=42)
     print(f"伝票#{detail.entry_number}: {detail.description}")
     for line in detail.lines:
-        print(f"  科目{line.account_id}: 借方{line.debit} 貸方{line.credit}")
+        print(f"  科目{line.account_code}: 借方{line.debit} 貸方{line.credit}")
 ```
 
 ## 仕訳の削除
@@ -127,7 +127,7 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
         description=s["entry_description"],
         lines=[
             JournalLine(
-                account_id=line["account_id"],
+                account_code=line["account_code"],
                 debit=line["debit_amount"],
                 credit=line["credit_amount"],
             )
@@ -159,7 +159,7 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
             description=s["entry_description"],
             lines=[
                 JournalLine(
-                    account_id=line["account_id"],
+                    account_code=line["account_code"],
                     debit=line["debit_amount"],
                     credit=line["credit_amount"],
                 )
@@ -207,9 +207,9 @@ with KakeiboClient("https://example.com", "ik_your_key") as client:
         date="2026-02-15",
         description="日用品購入",
         lines=[
-            JournalLine(account_id=17, debit=500, description="洗剤"),
-            JournalLine(account_id=17, debit=300, description="ゴミ袋"),
-            JournalLine(account_id=1, credit=800),
+            JournalLine(account_code="7040", debit=500, description="洗剤"),
+            JournalLine(account_code="7040", debit=300, description="ゴミ袋"),
+            JournalLine(account_code="1010", credit=800),
         ],
     )
 ```

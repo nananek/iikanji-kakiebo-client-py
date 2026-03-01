@@ -19,8 +19,8 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
         date="2026-02-15",
         description="スーパーで食材購入",
         lines=[
-            JournalLine(account_id=12, debit=3000),   # 食費（借方）
-            JournalLine(account_id=1, credit=3000),    # 現金（貸方）
+            JournalLine(account_code="7010", debit=3000),   # 食費（借方）
+            JournalLine(account_code="1010", credit=3000),  # 現金（貸方）
         ],
     )
     print(f"仕訳ID: {result.id}, 伝票番号: {result.entry_number}")
@@ -46,7 +46,7 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
         description=s["entry_description"],
         lines=[
             JournalLine(
-                account_id=line["account_id"],
+                account_code=line["account_code"],
                 debit=line["debit_amount"],
                 credit=line["credit_amount"],
             )

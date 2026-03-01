@@ -48,8 +48,8 @@ SAMPLE_JOURNAL = {
     "description": "テスト仕訳",
     "source": "api",
     "lines": [
-        {"account_id": 12, "debit": 1000, "credit": 0, "description": ""},
-        {"account_id": 1, "debit": 0, "credit": 1000, "description": "メモ"},
+        {"account_code": "7010", "debit": 1000, "credit": 0, "description": ""},
+        {"account_code": "1010", "debit": 0, "credit": 1000, "description": "メモ"},
     ],
 }
 
@@ -63,8 +63,8 @@ class TestCreateJournal:
                 date="2026-02-15",
                 description="テスト仕訳",
                 lines=[
-                    JournalLine(account_id=12, debit=1000),
-                    JournalLine(account_id=1, credit=1000),
+                    JournalLine(account_code="7010", debit=1000),
+                    JournalLine(account_code="1010", credit=1000),
                 ],
             )
 
@@ -90,8 +90,8 @@ class TestCreateJournal:
                 date="2026-01-10",
                 description="食材",
                 lines=[
-                    JournalLine(account_id=5, debit=500, description="メモ"),
-                    JournalLine(account_id=1, credit=500),
+                    JournalLine(account_code="7010", debit=500, description="メモ"),
+                    JournalLine(account_code="1010", credit=500),
                 ],
                 source="custom",
             )
@@ -101,8 +101,8 @@ class TestCreateJournal:
         assert payload["description"] == "食材"
         assert payload["source"] == "custom"
         assert len(payload["lines"]) == 2
-        assert payload["lines"][0] == {"account_id": 5, "debit": 500, "description": "メモ"}
-        assert payload["lines"][1] == {"account_id": 1, "credit": 500}
+        assert payload["lines"][0] == {"account_code": "7010", "debit": 500, "description": "メモ"}
+        assert payload["lines"][1] == {"account_code": "1010", "credit": 500}
 
     def test_with_draft_id(self) -> None:
         captured: list[dict] = []
@@ -122,8 +122,8 @@ class TestCreateJournal:
                 date="2026-01-10",
                 description="下書きから確定",
                 lines=[
-                    JournalLine(account_id=5, debit=500),
-                    JournalLine(account_id=1, credit=500),
+                    JournalLine(account_code="7010", debit=500),
+                    JournalLine(account_code="1010", credit=500),
                 ],
                 draft_id=10,
             )
@@ -148,8 +148,8 @@ class TestCreateJournal:
                 date="2026-01-10",
                 description="通常の仕訳",
                 lines=[
-                    JournalLine(account_id=5, debit=500),
-                    JournalLine(account_id=1, credit=500),
+                    JournalLine(account_code="7010", debit=500),
+                    JournalLine(account_code="1010", credit=500),
                 ],
             )
 
@@ -162,7 +162,7 @@ class TestCreateJournal:
             client.create_journal(
                 date="2026-02-15",
                 description="テスト",
-                lines=[JournalLine(account_id=1, debit=100)],
+                lines=[JournalLine(account_code="1010", debit=100)],
             )
 
         assert exc_info.value.status_code == 401
@@ -176,8 +176,8 @@ class TestCreateJournal:
                 date="2026-02-15",
                 description="テスト",
                 lines=[
-                    JournalLine(account_id=1, debit=1000),
-                    JournalLine(account_id=2, credit=500),
+                    JournalLine(account_code="1010", debit=1000),
+                    JournalLine(account_code="1020", credit=500),
                 ],
             )
 
@@ -209,7 +209,7 @@ class TestCreateJournal:
             client.create_journal(
                 date=date(2026, 3, 1),
                 description="date objectテスト",
-                lines=[JournalLine(account_id=1, debit=100), JournalLine(account_id=2, credit=100)],
+                lines=[JournalLine(account_code="1010", debit=100), JournalLine(account_code="1020", credit=100)],
             )
 
         assert captured[0]["date"] == "2026-03-01"
@@ -233,7 +233,7 @@ class TestCreateJournal:
             client.create_journal(
                 date=datetime(2026, 3, 1, 14, 30, 0),
                 description="datetimeテスト",
-                lines=[JournalLine(account_id=1, debit=100), JournalLine(account_id=2, credit=100)],
+                lines=[JournalLine(account_code="1010", debit=100), JournalLine(account_code="1020", credit=100)],
             )
 
         assert captured[0]["date"] == "2026-03-01"
@@ -253,7 +253,7 @@ class TestGetJournal:
         assert result.description == "テスト仕訳"
         assert result.source == "api"
         assert len(result.lines) == 2
-        assert result.lines[0].account_id == 12
+        assert result.lines[0].account_code == "7010"
         assert result.lines[0].debit == 1000
         assert result.lines[1].description == "メモ"
 
@@ -373,8 +373,8 @@ SAMPLE_SUGGESTIONS = [
         "description": "レシート",
         "entry_description": "スーパーで食材購入",
         "lines": [
-            {"account_id": 12, "account_name": "食費", "debit_amount": 3000, "credit_amount": 0},
-            {"account_id": 1, "account_name": "現金", "debit_amount": 0, "credit_amount": 3000},
+            {"account_code": "7010", "account_name": "食費", "debit_amount": 3000, "credit_amount": 0},
+            {"account_code": "1010", "account_name": "現金", "debit_amount": 0, "credit_amount": 3000},
         ],
     }
 ]

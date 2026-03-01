@@ -37,8 +37,8 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
         date="2026-02-15",
         description="スーパーで食材購入",
         lines=[
-            JournalLine(account_id=12, debit=3000),   # 食費（借方）
-            JournalLine(account_id=1, credit=3000),    # 現金（貸方）
+            JournalLine(account_code="7010", debit=3000),   # 食費（借方）
+            JournalLine(account_code="1010", credit=3000),  # 現金（貸方）
         ],
     )
     print(f"仕訳ID: {result.id}, 伝票番号: {result.entry_number}")
@@ -54,8 +54,8 @@ try:
         date="2026-02-15",
         description="電気代",
         lines=[
-            JournalLine(account_id=14, debit=8500),    # 水道光熱費
-            JournalLine(account_id=2, credit=8500),    # 普通預金
+            JournalLine(account_code="7020", debit=8500),    # 水道光熱費
+            JournalLine(account_code="1020", credit=8500),  # 普通預金
         ],
     )
 finally:
@@ -72,7 +72,7 @@ with KakeiboClient("https://your-server.example.com", "ik_your_api_key") as clie
         result = client.create_journal(
             date="2026-02-15",
             description="テスト",
-            lines=[JournalLine(account_id=12, debit=1000)],
+            lines=[JournalLine(account_code="7010", debit=1000)],
         )
     except AuthenticationError as e:
         print(f"認証エラー: {e.message}")

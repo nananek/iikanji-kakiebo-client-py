@@ -10,13 +10,13 @@ from datetime import date, datetime
 class JournalLine:
     """仕訳明細行"""
 
-    account_id: int
+    account_code: str
     debit: int = 0
     credit: int = 0
     description: str = ""
 
     def to_dict(self) -> dict:
-        d: dict = {"account_id": self.account_id}
+        d: dict = {"account_code": self.account_code}
         if self.debit:
             d["debit"] = self.debit
         if self.credit:
@@ -84,7 +84,7 @@ class JournalDetail:
             source=data["source"],
             lines=[
                 JournalLine(
-                    account_id=line["account_id"],
+                    account_code=line["account_code"],
                     debit=line.get("debit", 0),
                     credit=line.get("credit", 0),
                     description=line.get("description", ""),

@@ -190,7 +190,7 @@ close() -> None
 ```python
 @dataclass
 class JournalLine:
-    account_id: int
+    account_code: str
     debit: int = 0
     credit: int = 0
     description: str = ""
@@ -198,7 +198,7 @@ class JournalLine:
 
 | フィールド | 型 | 説明 |
 |-----------|-----|------|
-| `account_id` | `int` | 勘定科目 ID（必須） |
+| `account_code` | `str` | 勘定科目コード（必須） |
 | `debit` | `int` | 借方金額（デフォルト: 0） |
 | `credit` | `int` | 貸方金額（デフォルト: 0） |
 | `description` | `str` | 行レベルの摘要（省略可） |

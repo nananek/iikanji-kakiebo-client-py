@@ -36,8 +36,8 @@ class KakeiboClient:
                 date="2026-02-15",
                 description="食材購入",
                 lines=[
-                    JournalLine(account_id=12, debit=3000),
-                    JournalLine(account_id=1, credit=3000),
+                    JournalLine(account_code="7010", debit=3000),
+                    JournalLine(account_code="1010", credit=3000),
                 ],
             )
     """
